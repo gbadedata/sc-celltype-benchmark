@@ -109,8 +109,12 @@ def scale_and_pca(adata: ad.AnnData) -> ad.AnnData:
 
     Scales gene expression to zero mean and unit variance per gene.
     Clips values at max_value=10 to limit the influence of outliers.
-    PCA is computed on the HVG subset only, which is standard practice
-    to focus on informative variation.
+    PCA is computed on the HVG subset only via the mask_var argument,
+    which is the non-deprecated API in scanpy >= 1.10.
+
+    Note: sc.pp.scale densifies sparse matrices. This is expected
+    behaviour after HVG selection reduces the gene set to ~2000 genes;
+    at that size, dense representation is memory-efficient.
 
     Args:
         adata: AnnData with normalised log1p counts and HVG flags.
@@ -124,7 +128,7 @@ def scale_and_pca(adata: ad.AnnData) -> ad.AnnData:
     sc.tl.pca(
         adata,
         n_comps=settings.n_pcs,
-        use_highly_variable=True,
+        mask_var="highly_variable",
         svd_solver="arpack",
         random_state=settings.random_seed,
     )
