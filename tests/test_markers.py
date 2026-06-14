@@ -59,6 +59,25 @@ class TestPbmcMarkers:
         assert len(t_markers & b_markers) == 0
 
 
+class TestDetectMarkersUseRaw:
+    """Test that detect_markers correctly uses raw log-normalised counts."""
+
+    def test_uses_raw_when_available(self, clustered_adata: ad.AnnData) -> None:
+        """detect_markers runs on .raw when it is set."""
+        assert clustered_adata.raw is not None
+        result = detect_markers(clustered_adata)
+        params = result.uns["rank_genes_groups"]["params"]
+        assert params.get("use_raw") is True
+
+    def test_genes_come_from_raw_var_names(self, clustered_adata: ad.AnnData) -> None:
+        """Detected gene names exist in adata.raw.var_names."""
+        result = detect_markers(clustered_adata)
+        raw_genes = set(result.raw.var_names)
+        top = get_top_markers(result, n_genes=5)
+        detected_genes = set(top["names"].tolist())
+        assert detected_genes.issubset(raw_genes)
+
+
 class TestDetectMarkers:
     """Test Wilcoxon marker detection."""
 

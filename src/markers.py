@@ -51,8 +51,12 @@ def detect_markers(
     correction (Benjamini-Hochberg). Results are stored in
     adata.uns['rank_genes_groups'].
 
+    Uses use_raw=True to run DE on log-normalised counts stored in
+    adata.raw, not on the scaled matrix in adata.X (which has zero
+    mean and unit variance and is unsuitable for DE testing).
+
     Args:
-        adata: Clustered AnnData with .obs[groupby] labels.
+        adata: Clustered AnnData with .obs[groupby] labels and .raw set.
         groupby: Column in .obs defining groups (default: 'leiden').
         method: DE test method (default: 'wilcoxon').
         n_genes: Number of top genes to retain per group.
@@ -60,21 +64,30 @@ def detect_markers(
     Returns:
         AnnData with DE results stored in .uns['rank_genes_groups'].
     """
+    use_raw = adata.raw is not None
+    if not use_raw:
+        logger.warning(
+            "adata.raw is not set; running DE on scaled .X. "
+            "Call preprocessing.normalize() before detect_markers()."
+        )
+
     sc.tl.rank_genes_groups(
         adata,
         groupby=groupby,
         method=method,
         n_genes=n_genes,
-        pts=True,            # compute % of cells expressing the gene
+        pts=True,
+        use_raw=use_raw,
         key_added="rank_genes_groups",
     )
 
     n_groups = len(adata.uns["rank_genes_groups"]["names"].dtype.names)
     logger.info(
-        "markers_detected: %d groups, top %d genes each, method=%s",
+        "markers_detected: %d groups, top %d genes each, method=%s, use_raw=%s",
         n_groups,
         n_genes,
         method,
+        use_raw,
     )
     return adata
 
