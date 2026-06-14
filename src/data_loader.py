@@ -1,15 +1,14 @@
 """Data acquisition and loading.
 
-Downloads 10x Genomics scRNA-seq datasets and loads them into AnnData objects.
-Supports h5, h5ad, and 10x MTX formats. Caches downloads locally so
-repeated runs do not re-download.
+Downloads scRNA-seq datasets and loads them into AnnData objects.
+Default dataset: 10x Genomics PBMC 3k (via scanpy, hosted on figshare).
+Also supports loading any local h5ad or h5 file.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from urllib.request import urlretrieve
 
 import anndata as ad
 import scanpy as sc
@@ -19,57 +18,44 @@ from config.settings import settings
 logger = logging.getLogger(__name__)
 
 
-def _progress_hook(block_num: int, block_size: int, total_size: int) -> None:
-    """Report download progress to the log."""
-    downloaded = block_num * block_size
-    if total_size > 0:
-        pct = min(100, downloaded * 100 // total_size)
-        mb = downloaded / (1024 * 1024)
-        if block_num % 200 == 0 or pct >= 100:
-            logger.info("download_progress: %.1f MB (%d%%)", mb, pct)
+def download_pbmc3k(dest_dir: Path | str | None = None) -> ad.AnnData:
+    """Download the PBMC 3k dataset via scanpy.
 
+    Uses scanpy.datasets.pbmc3k() which fetches the 10x Genomics
+    PBMC 3k filtered gene-barcode matrix from figshare. Returns
+    raw integer counts (no preprocessing applied).
 
-def download_dataset(
-    url: str | None = None,
-    dest_dir: Path | str | None = None,
-    filename: str | None = None,
-) -> Path:
-    """Download dataset from URL to local directory.
-
-    Skips download if the file already exists locally.
+    The download is cached by scanpy in its data directory. We also
+    save a local h5ad copy in our data/ folder for reproducibility.
 
     Args:
-        url: Download URL. Defaults to settings.dataset_url.
-        dest_dir: Target directory. Defaults to settings.data_dir.
-        filename: Local filename. Defaults to settings.dataset_filename.
+        dest_dir: Directory to cache the h5ad copy. Defaults to settings.data_dir.
 
     Returns:
-        Path to the downloaded file.
+        AnnData with raw counts (~2,700 cells x ~32,000 genes).
     """
-    url = url or settings.dataset_url
     dest_dir = Path(dest_dir) if dest_dir else settings.data_dir
-    filename = filename or settings.dataset_filename
-
     dest_dir.mkdir(parents=True, exist_ok=True)
-    filepath = dest_dir / filename
+    cache_path = dest_dir / "pbmc3k_raw.h5ad"
 
-    if filepath.exists():
-        size_mb = filepath.stat().st_size / (1024 * 1024)
-        logger.info("dataset_cached: %s (%.1f MB)", filepath, size_mb)
-        return filepath
+    if cache_path.exists():
+        size_mb = cache_path.stat().st_size / (1024 * 1024)
+        logger.info("dataset_cached: %s (%.1f MB)", cache_path, size_mb)
+        return ad.read_h5ad(cache_path)
 
-    logger.info("downloading_dataset: %s -> %s", url, filepath)
-    try:
-        urlretrieve(url, filepath, reporthook=_progress_hook)
-    except Exception:
-        # Clean up partial download
-        if filepath.exists():
-            filepath.unlink()
-        raise
+    logger.info("downloading_pbmc3k via scanpy (figshare)")
+    adata = sc.datasets.pbmc3k()
+    adata.var_names_make_unique()
 
-    size_mb = filepath.stat().st_size / (1024 * 1024)
-    logger.info("download_complete: %s (%.1f MB)", filepath, size_mb)
-    return filepath
+    # Cache locally
+    adata.write_h5ad(cache_path)
+    logger.info(
+        "downloaded_and_cached: %d cells x %d genes -> %s",
+        adata.n_obs,
+        adata.n_vars,
+        cache_path,
+    )
+    return adata
 
 
 def load_10x_h5(filepath: str | Path) -> ad.AnnData:
@@ -92,11 +78,7 @@ def load_10x_h5(filepath: str | Path) -> ad.AnnData:
     adata = sc.read_10x_h5(str(filepath))
     adata.var_names_make_unique()
 
-    logger.info(
-        "loaded: %d cells x %d genes",
-        adata.n_obs,
-        adata.n_vars,
-    )
+    logger.info("loaded: %d cells x %d genes", adata.n_obs, adata.n_vars)
     return adata
 
 
@@ -120,29 +102,31 @@ def load_h5ad(filepath: str | Path) -> ad.AnnData:
 
 
 def get_dataset(filepath: str | Path | None = None) -> ad.AnnData:
-    """Download (if needed) and load the configured dataset.
+    """Download (if needed) and load the dataset.
 
-    This is the main entry point. It checks whether the file
-    exists locally, downloads if missing, loads, and returns.
+    This is the main entry point.
+
+    - If filepath is provided, loads from that file directly
+      (.h5 or .h5ad format).
+    - If no filepath, downloads the PBMC 3k dataset via scanpy
+      and caches it locally.
 
     Args:
-        filepath: Optional explicit path. If provided, skips download
-            and loads directly. Supports .h5 and .h5ad formats.
+        filepath: Optional explicit path to a local dataset file.
 
     Returns:
         AnnData with raw counts.
     """
     if filepath is not None:
         filepath = Path(filepath)
-    else:
-        filepath = download_dataset()
+        suffix = filepath.suffix.lower()
+        if suffix == ".h5":
+            return load_10x_h5(filepath)
+        elif suffix == ".h5ad":
+            return load_h5ad(filepath)
+        else:
+            raise ValueError(
+                f"Unsupported file format: {suffix}. Expected .h5 or .h5ad"
+            )
 
-    suffix = filepath.suffix.lower()
-    if suffix == ".h5":
-        return load_10x_h5(filepath)
-    elif suffix == ".h5ad":
-        return load_h5ad(filepath)
-    else:
-        raise ValueError(
-            f"Unsupported file format: {suffix}. Expected .h5 or .h5ad"
-        )
+    return download_pbmc3k()

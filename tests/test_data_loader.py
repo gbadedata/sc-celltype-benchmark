@@ -12,7 +12,7 @@ import anndata as ad
 import pytest
 import scipy.sparse as sp
 
-from src.data_loader import download_dataset, get_dataset, load_h5ad
+from src.data_loader import download_pbmc3k, get_dataset, load_h5ad
 
 
 class TestLoadH5ad:
@@ -71,34 +71,24 @@ class TestGetDataset:
             get_dataset(filepath=filepath)
 
 
-class TestDownloadDataset:
-    """Test download logic (without hitting real URLs)."""
+class TestDownloadPbmc3k:
+    """Test PBMC 3k download caching logic."""
 
-    def test_skips_if_file_exists(self, tmp_path: Path) -> None:
-        """Download is skipped when the file already exists locally."""
-        existing = tmp_path / "cached.h5"
-        existing.write_bytes(b"fake data")
+    def test_returns_cached_h5ad(self, tmp_path: Path, synthetic_adata: ad.AnnData) -> None:
+        """download_pbmc3k returns cached file without re-downloading."""
+        cache_path = tmp_path / "pbmc3k_raw.h5ad"
+        synthetic_adata.write_h5ad(cache_path)
 
-        result = download_dataset(
-            url="https://example.com/fake.h5",
-            dest_dir=tmp_path,
-            filename="cached.h5",
-        )
-        assert result == existing
-        # File content unchanged (was not re-downloaded)
-        assert existing.read_bytes() == b"fake data"
+        result = download_pbmc3k(dest_dir=tmp_path)
+        assert isinstance(result, ad.AnnData)
+        assert result.n_obs == synthetic_adata.n_obs
 
     def test_creates_dest_dir(self, tmp_path: Path) -> None:
-        """Download creates the destination directory if missing."""
+        """download_pbmc3k creates destination directory if missing."""
         nested = tmp_path / "a" / "b" / "c"
-        # We expect a download error since the URL is fake,
-        # but the directory should be created before the attempt.
+        # Will try to download (and may fail), but directory should be created
         try:
-            download_dataset(
-                url="https://example.invalid/fake.h5",
-                dest_dir=nested,
-                filename="test.h5",
-            )
+            download_pbmc3k(dest_dir=nested)
         except Exception:
             pass
         assert nested.exists()

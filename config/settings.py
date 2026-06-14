@@ -18,14 +18,9 @@ class PipelineSettings(BaseSettings):
     evidence_dir: Path = Path(__file__).resolve().parent.parent / "evidence"
 
     # ── Data source ────────────────────────────────────────────────────
-    # 10x Genomics PBMC 10k v3 filtered feature-barcode matrix (h5)
-    dataset_url: str = (
-        "https://cf.10xgenomics.com/samples/cell-exp/4.0.0/"
-        "Parent_NGSC3_DI_PBMC/"
-        "Parent_NGSC3_DI_PBMC_filtered_feature_bc_matrix.h5"
-    )
-    dataset_filename: str = "pbmc_10k_v3_filtered.h5"
-    dataset_name: str = "PBMC 10k v3"
+    # Default: PBMC 3k from 10x Genomics (downloaded via scanpy from figshare)
+    dataset_name: str = "PBMC 3k (10x Genomics)"
+    dataset_filename: str = "pbmc3k_raw.h5ad"
 
     # ── QC thresholds ──────────────────────────────────────────────────
     min_genes_per_cell: int = 200
