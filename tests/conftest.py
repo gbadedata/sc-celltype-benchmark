@@ -78,18 +78,20 @@ def synthetic_adata() -> ad.AnnData:
 
 @pytest.fixture
 def annotated_adata(synthetic_adata: ad.AnnData) -> ad.AnnData:
-    """Synthetic AnnData with annotation columns already populated.
+    """Synthetic AnnData with all annotation columns populated.
 
-    For testing benchmark and evaluation modules.
+    For testing benchmark, evaluation, and comparison modules.
+    Includes celltype_manual, celltype_reference, and
+    celltype_reference_coarse columns.
     """
     adata = synthetic_adata.copy()
     # Perfect manual annotation (matches ground truth)
-    adata.obs["celltype_manual"] = adata.obs["celltype_ground_truth"].copy()
+    adata.obs["celltype_manual"] = adata.obs["celltype_ground_truth"].copy().astype("category")
     # Reference annotation with some noise
     rng = np.random.default_rng(42)
     ref = adata.obs["celltype_ground_truth"].values.copy()
     noise_idx = rng.choice(len(ref), size=10, replace=False)
     ref[noise_idx] = "B cells"
-    adata.obs["celltype_reference"] = ref
-    adata.obs["celltype_reference_coarse"] = ref
+    adata.obs["celltype_reference"] = pd.Categorical(ref)
+    adata.obs["celltype_reference_coarse"] = pd.Categorical(ref)
     return adata
