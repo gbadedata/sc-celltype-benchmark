@@ -163,14 +163,21 @@ def annotate_manual(
 def annotate_celltypist(adata: ad.AnnData) -> ad.AnnData:
     """Annotate cells using CellTypist pre-trained reference model.
 
-    Downloads Immune_All_Low.pkl if not already cached. Runs per-cell
-    prediction with majority voting so each Leiden cluster receives
-    a single consensus label. Stores fine-grained labels in
-    'celltype_reference' and confidence in 'celltype_reference_conf'.
+    Downloads only Immune_All_Low.pkl if not already cached (not all
+    61 models). Runs per-cell prediction with majority voting so each
+    Leiden cluster receives a single consensus label.
+
+    CellTypist requires log1p-normalised counts (target_sum=10000) in
+    the input .X matrix. We build a clean query AnnData from adata.raw
+    to avoid passing the scaled matrix that lives in adata.X after
+    preprocessing.
+
+    Stores fine-grained labels in 'celltype_reference' and confidence
+    scores in 'celltype_reference_conf'.
 
     Args:
-        adata: AnnData with normalised log1p counts in .X (post-scale
-               is fine; CellTypist normalises internally).
+        adata: AnnData with .raw set to log-normalised counts and
+               leiden clustering in .obs.
 
     Returns:
         AnnData with reference annotation columns added to .obs.
@@ -179,20 +186,28 @@ def annotate_celltypist(adata: ad.AnnData) -> ad.AnnData:
         import celltypist
         from celltypist import models
     except ImportError:
-        logger.error(
-            "celltypist not installed. Run: pip install celltypist"
-        )
+        logger.error("celltypist not installed. Run: pip install celltypist")
         raise
 
-    logger.info("downloading_celltypist_model: Immune_All_Low.pkl")
+    # Download only the required model, not all 61
+    logger.info("downloading_celltypist_model: Immune_All_Low.pkl (if not cached)")
+    models.download_models(model=["Immune_All_Low.pkl"], force_update=False)
     model = models.Model.load(model="Immune_All_Low.pkl")
 
-    # CellTypist expects log1p-normalised counts with majority voting
-    # Use adata.raw for the expression matrix
+    # Build a clean query AnnData from .raw (log1p-normalised counts).
+    # CellTypist validates that .X contains log1p-normalised values;
+    # passing the scaled .X from preprocessing causes a ValueError.
     if adata.raw is not None:
-        query = ad.AnnData(X=adata.raw.X, obs=adata.obs, var=adata.raw.var)
+        query = ad.AnnData(
+            X=adata.raw.X,
+            obs=adata.obs.copy(),
+            var=adata.raw.var.copy(),
+        )
     else:
-        query = adata.copy()
+        raise ValueError(
+            "adata.raw is not set. Call preprocessing.normalize() before "
+            "annotate_celltypist() to preserve log-normalised counts in .raw."
+        )
 
     logger.info("running_celltypist_prediction: majority_voting=True")
     predictions = celltypist.annotate(
