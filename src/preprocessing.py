@@ -130,6 +130,13 @@ def scale_and_pca(adata: ad.AnnData) -> ad.AnnData:
         AnnData with PCA embedding in .obsm['X_pca'] and variance
         ratios in .uns['pca']['variance_ratio'].
     """
+    # sc.pp.scale requires a dense matrix; sparse input triggers a UserWarning.
+    # Convert explicitly before scaling so the densification is intentional
+    # and documented, not a silent side-effect.
+    import scipy.sparse as sp
+    if sp.issparse(adata.X):
+        adata.X = adata.X.toarray()
+
     sc.pp.scale(adata, max_value=10)
 
     sc.tl.pca(
