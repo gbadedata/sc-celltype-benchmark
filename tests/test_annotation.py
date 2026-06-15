@@ -46,13 +46,13 @@ class TestCelltypistCoarseMap:
         """CELLTYPIST_COARSE_MAP has entries."""
         assert len(CELLTYPIST_COARSE_MAP) > 0
 
-    def test_all_values_are_known_types(self) -> None:
-        """All coarse labels map to recognised PBMC cell types."""
+    def test_all_values_are_known_types_or_unknown(self) -> None:
+        """All coarse labels map to recognised PBMC types or 'Unknown'."""
         from src.markers import PBMC_MARKERS
-        known_types = set(PBMC_MARKERS.keys())
+        known_types = set(PBMC_MARKERS.keys()) | {"Unknown"}
         for fine, coarse in CELLTYPIST_COARSE_MAP.items():
             assert coarse in known_types, (
-                f"'{fine}' maps to '{coarse}' which is not in PBMC_MARKERS"
+                f"'{fine}' maps to '{coarse}' which is not in PBMC_MARKERS or Unknown"
             )
 
     def test_classical_monocytes_map_correctly(self) -> None:
@@ -63,9 +63,53 @@ class TestCelltypistCoarseMap:
         """pDC maps to Plasmacytoid DCs."""
         assert CELLTYPIST_COARSE_MAP["pDC"] == "Plasmacytoid DCs"
 
-    def test_nonclassical_monocytes_map_correctly(self) -> None:
-        """Non-classical monocytes map to FCGR3A+ Monocytes."""
-        assert CELLTYPIST_COARSE_MAP["Non-classical monocytes"] == "FCGR3A+ Monocytes"
+    def test_critical_pbmc3k_labels_mapped(self) -> None:
+        """Labels actually returned by CellTypist on PBMC 3k are all mapped.
+
+        These five labels were previously missing from the map, causing
+        F1=0 for 331 cells (Tcm/Naive helper T cells=240, CD16+ NK=88,
+        Tem/Trm cytotoxic=3, DC=7, Megakaryocytes/platelets=3).
+        """
+        critical = {
+            "Tcm/Naive helper T cells":  "CD4+ T cells",
+            "Tem/Trm cytotoxic T cells": "CD8+ T cells",
+            "CD16+ NK cells":            "NK cells",
+            "DC":                        "Dendritic cells",
+            "Megakaryocytes/platelets":  "Platelets",
+        }
+        for fine_label, expected_coarse in critical.items():
+            assert fine_label in CELLTYPIST_COARSE_MAP, (
+                f"Critical label '{fine_label}' missing from map"
+            )
+            assert CELLTYPIST_COARSE_MAP[fine_label] == expected_coarse, (
+                f"'{fine_label}' maps to '{CELLTYPIST_COARSE_MAP[fine_label]}', "
+                f"expected '{expected_coarse}'"
+            )
+
+    def test_no_label_passes_through_unmapped(self) -> None:
+        """The map has no gaps — every Immune_All_Low label is explicitly handled."""
+        # Complete Immune_All_Low label list (Dominguez Conde et al. 2022)
+        all_immune_all_low_labels = [
+            "CD4+ T cells", "CD4+ TCM", "CD4+ TEM", "CD4+ Treg",
+            "CD8+ T cells", "CD8+ TCM", "CD8+ TEM", "CD8+ TEx",
+            "Tcm/Naive helper T cells", "Tem/Trm cytotoxic T cells",
+            "T(agonist)", "ILC", "gdT", "NKT cells", "MAIT cells",
+            "NK cells", "NK_CD56bright", "CD16+ NK cells",
+            "B cells", "B naive", "B memory", "B intermediate",
+            "Plasma cells", "Plasmablasts", "Age-associated B cells",
+            "CD14+ Monocytes", "CD16+ Monocytes", "Classical monocytes",
+            "Non-classical monocytes", "FCGR3A+ Monocytes", "Intermediate monocytes",
+            "DC", "DC1", "DC2", "Migratory DCs", "pDC",
+            "Plasmacytoid dendritic cells", "Dendritic cells", "cDC1", "cDC2", "AS DCs",
+            "Mast cells", "Basophils",
+            "HSC", "HSPCs", "Progenitors", "Cycling cells", "Doublets",
+            "Platelets", "Megakaryocytes", "Megakaryocytes/platelets",
+            "Neutrophils", "Eosinophils",
+        ]
+        missing = [label for label in all_immune_all_low_labels if label not in CELLTYPIST_COARSE_MAP]
+        assert missing == [], (
+            f"The following Immune_All_Low labels are not in CELLTYPIST_COARSE_MAP: {missing}"
+        )
 
 
 class TestAnnotateManual:

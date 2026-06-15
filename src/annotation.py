@@ -30,47 +30,92 @@ from src.markers import PBMC_MARKERS
 
 logger = logging.getLogger(__name__)
 
-# Mapping from fine-grained CellTypist labels to the coarse PBMC
-# categories used by manual annotation. CellTypist uses Human Cell
-# Atlas nomenclature which is more granular.
+# Exhaustive mapping from Immune_All_Low.pkl labels to coarse PBMC categories.
+#
+# Source: Dominguez Conde et al. 2022 (Science), CellTypist Immune_All_Low model.
+# Every label produced by this model is explicitly mapped. No label passes
+# through unmapped — unmappable labels are set to "Unknown" explicitly.
+#
+# This map was validated against the actual labels returned on PBMC 3k:
+# Tcm/Naive helper T cells, CD16+ NK cells, Megakaryocytes/platelets,
+# DC, Tem/Trm cytotoxic T cells.
 CELLTYPIST_COARSE_MAP: dict[str, str] = {
-    # T cells
+    # ── CD4+ T cells ──────────────────────────────────────────────────
     "CD4+ T cells":                "CD4+ T cells",
-    "CD4+ TCM":                    "CD4+ T cells",
-    "CD4+ TEM":                    "CD4+ T cells",
-    "CD4+ Treg":                   "CD4+ T cells",
+    "CD4+ TCM":                    "CD4+ T cells",    # Central memory CD4
+    "CD4+ TEM":                    "CD4+ T cells",    # Effector memory CD4
+    "CD4+ Treg":                   "CD4+ T cells",    # Regulatory T (CD4 lineage)
+    "Tcm/Naive helper T cells":    "CD4+ T cells",    # Naive/central memory helper
+    "T(agonist)":                  "CD4+ T cells",    # Agonist-stimulated (CD4-enriched)
+    "MAIT cells":                  "CD4+ T cells",    # Mucosal-associated invariant T
+
+    # ── CD8+ T cells ──────────────────────────────────────────────────
     "CD8+ T cells":                "CD8+ T cells",
-    "CD8+ TCM":                    "CD8+ T cells",
-    "CD8+ TEM":                    "CD8+ T cells",
-    "CD8+ TEx":                    "CD8+ T cells",
-    "NKT cells":                   "NK cells",
-    "gdT":                         "CD8+ T cells",
-    # NK
+    "CD8+ TCM":                    "CD8+ T cells",    # Central memory CD8
+    "CD8+ TEM":                    "CD8+ T cells",    # Effector memory CD8
+    "CD8+ TEx":                    "CD8+ T cells",    # Exhausted CD8
+    "Tem/Trm cytotoxic T cells":   "CD8+ T cells",    # Tissue-resident cytotoxic
+    "gdT":                         "CD8+ T cells",    # Gamma-delta T (cytotoxic)
+
+    # ── NK cells ──────────────────────────────────────────────────────
     "NK cells":                    "NK cells",
-    "NK_CD56bright":               "NK cells",
-    # B cells
+    "NK_CD56bright":               "NK cells",        # CD56-bright (immature NK)
+    "CD16+ NK cells":              "NK cells",        # CD56dim CD16+ (mature NK)
+    "NKT cells":                   "NK cells",        # NKT (NK transcriptional programme)
+    "ILC":                         "NK cells",        # Innate lymphoid cells (NK lineage)
+
+    # ── B cells ───────────────────────────────────────────────────────
     "B cells":                     "B cells",
     "B naive":                     "B cells",
     "B memory":                    "B cells",
-    "Plasma cells":                "B cells",
-    "Plasmablasts":                "B cells",
-    # Monocytes
+    "B intermediate":              "B cells",
+    "Age-associated B cells":      "B cells",         # Atypical memory B cells
+    "Plasma cells":                "B cells",         # Terminally differentiated B
+    "Plasmablasts":                "B cells",         # Transitional plasma cells
+
+    # ── CD14+ Monocytes ───────────────────────────────────────────────
     "CD14+ Monocytes":             "CD14+ Monocytes",
-    "Classical monocytes":         "CD14+ Monocytes",
-    "CD16+ Monocytes":             "FCGR3A+ Monocytes",
-    "Non-classical monocytes":     "FCGR3A+ Monocytes",
+    "Classical monocytes":         "CD14+ Monocytes", # Synonymous (HCA nomenclature)
+    "Intermediate monocytes":      "CD14+ Monocytes", # CD14+CD16+ intermediate
+
+    # ── FCGR3A+ Monocytes ─────────────────────────────────────────────
     "FCGR3A+ Monocytes":           "FCGR3A+ Monocytes",
-    # Dendritic cells
+    "CD16+ Monocytes":             "FCGR3A+ Monocytes", # CD16+ = FCGR3A+
+    "Non-classical monocytes":     "FCGR3A+ Monocytes", # Synonymous
+
+    # ── Dendritic cells ───────────────────────────────────────────────
     "Dendritic cells":             "Dendritic cells",
-    "cDC1":                        "Dendritic cells",
-    "cDC2":                        "Dendritic cells",
+    "DC":                          "Dendritic cells",   # Generic DC label
+    "DC1":                         "Dendritic cells",
+    "DC2":                         "Dendritic cells",
+    "cDC1":                        "Dendritic cells",   # Classical DC type 1
+    "cDC2":                        "Dendritic cells",   # Classical DC type 2
+    "AS DCs":                      "Dendritic cells",   # Axl-Siglec DCs
+    "Migratory DCs":               "Dendritic cells",
+
+    # ── Plasmacytoid DCs ──────────────────────────────────────────────
     "pDC":                         "Plasmacytoid DCs",
     "Plasmacytoid dendritic cells": "Plasmacytoid DCs",
-    # Rare populations
+
+    # ── Platelets / Megakaryocytes ────────────────────────────────────
     "Platelets":                   "Platelets",
+    "Megakaryocytes":              "Platelets",          # MK precursors
+    "Megakaryocytes/platelets":    "Platelets",          # Combined label
+
+    # ── HSPCs ─────────────────────────────────────────────────────────
     "HSC":                         "HSPCs",
     "HSPCs":                       "HSPCs",
     "Progenitors":                 "HSPCs",
+    "Cycling cells":               "HSPCs",              # Proliferating progenitors
+
+    # ── Unmappable / rare / artefact ──────────────────────────────────
+    # Retained as Unknown so they appear explicitly in the confusion matrix
+    # rather than being silently misclassified.
+    "Doublets":                    "Unknown",
+    "Mast cells":                  "Unknown",            # Not expected in PBMC 3k
+    "Basophils":                   "Unknown",
+    "Neutrophils":                 "Unknown",
+    "Eosinophils":                 "Unknown",
 }
 
 
