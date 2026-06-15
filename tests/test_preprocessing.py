@@ -59,6 +59,21 @@ class TestNormalize:
         X = result.X.toarray() if sp.issparse(result.X) else result.X
         assert np.all(X >= 0)
 
+    def test_log_norm_layer_saved(self, qc_adata: ad.AnnData) -> None:
+        """log_norm layer is saved to adata.layers before scaling."""
+        result = normalize(qc_adata)
+        assert "log_norm" in result.layers
+
+    def test_log_norm_layer_values_positive(self, qc_adata: ad.AnnData) -> None:
+        """log_norm layer contains non-negative log1p values."""
+        import scipy.sparse as sp_test
+        result = normalize(qc_adata)
+        lnX = result.layers["log_norm"]
+        if sp_test.issparse(lnX):
+            lnX = lnX.toarray()
+        assert np.all(lnX >= 0)
+        assert lnX.max() < 15.0  # log1p(10000) ≈ 9.2
+
     def test_cell_count_unchanged(self, qc_adata: ad.AnnData) -> None:
         """Normalisation does not remove cells."""
         n_cells_before = qc_adata.n_obs

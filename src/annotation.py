@@ -194,20 +194,23 @@ def annotate_celltypist(adata: ad.AnnData) -> ad.AnnData:
     models.download_models(model=["Immune_All_Low.pkl"], force_update=False)
     model = models.Model.load(model="Immune_All_Low.pkl")
 
-    # Build a clean query AnnData from .raw (log1p-normalised counts).
-    # CellTypist validates that .X contains log1p-normalised values;
-    # passing the scaled .X from preprocessing causes a ValueError.
-    if adata.raw is not None:
-        query = ad.AnnData(
-            X=adata.raw.X,
-            obs=adata.obs.copy(),
-            var=adata.raw.var.copy(),
-        )
-    else:
+    # Build a clean query AnnData with log1p-normalised counts.
+    # adata.raw holds raw integer counts (saved before normalize_total).
+    # adata.layers['log_norm'] holds the log1p-normalised matrix saved
+    # before sc.pp.scale() overwrote adata.X. CellTypist validates that
+    # expm1(X).sum(axis=1) ≈ 10000 per cell — only log_norm satisfies this.
+    if "log_norm" not in adata.layers:
         raise ValueError(
-            "adata.raw is not set. Call preprocessing.normalize() before "
-            "annotate_celltypist() to preserve log-normalised counts in .raw."
+            "adata.layers['log_norm'] not found. "
+            "Ensure preprocessing.normalize() has been called — it saves "
+            "log1p-normalised counts to this layer before scaling."
         )
+
+    query = ad.AnnData(
+        X=adata.layers["log_norm"].copy(),
+        obs=adata.obs.copy(),
+        var=adata.var.copy(),
+    )
 
     logger.info("running_celltypist_prediction: majority_voting=True")
     predictions = celltypist.annotate(

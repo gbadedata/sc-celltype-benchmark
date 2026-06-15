@@ -65,8 +65,15 @@ def normalize(adata: ad.AnnData) -> ad.AnnData:
     sc.pp.normalize_total(adata, target_sum=1e4)
     sc.pp.log1p(adata)
 
+    # Save log-normalised counts in a layer BEFORE scaling.
+    # sc.pp.scale() overwrites .X with zero-mean unit-variance values
+    # which are unusable for CellTypist and DE testing. The layer
+    # preserves the log1p-normalised matrix for downstream annotation.
+    adata.layers["log_norm"] = adata.X.copy()
+
     logger.info(
-        "normalized: target_sum=10000, log1p applied, raw counts saved to .raw"
+        "normalized: target_sum=10000, log1p applied, "
+        "raw counts in .raw, log_norm counts in .layers['log_norm']"
     )
     return adata
 
