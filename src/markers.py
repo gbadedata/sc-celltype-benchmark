@@ -71,6 +71,14 @@ def detect_markers(
             "Call preprocessing.normalize() before detect_markers()."
         )
 
+    # Suppress a known spurious scanpy warning that fires even when use_raw=True
+    # is correctly set. The warning checks the wrong condition internally.
+    # Reference: github.com/scverse/scanpy/issues/2239
+    import warnings
+    warnings.filterwarnings(
+        "ignore",
+        message=".*rank_genes_groups on the raw count data.*",
+    )
     sc.tl.rank_genes_groups(
         adata,
         groupby=groupby,
@@ -80,6 +88,7 @@ def detect_markers(
         use_raw=use_raw,
         key_added="rank_genes_groups",
     )
+    warnings.resetwarnings()
 
     n_groups = len(adata.uns["rank_genes_groups"]["names"].dtype.names)
     logger.info(

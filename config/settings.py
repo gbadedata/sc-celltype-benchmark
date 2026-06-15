@@ -32,7 +32,7 @@ class PipelineSettings(BaseSettings):
     n_top_genes: int = 2000
     n_pcs: int = 50
     n_neighbors: int = 15
-    leiden_resolution: float = 0.8
+    leiden_resolution: float = 0.8  # balances cluster granularity vs annotation accuracy
 
     # ── Annotation ─────────────────────────────────────────────────────
     celltypist_model: str = "Immune_All_Low.pkl"

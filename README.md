@@ -1,120 +1,165 @@
-# Single-Cell RNA-seq Cell-Type Annotation Benchmark
+# sc-celltype-benchmark
 
-A production scanpy pipeline for single-cell RNA-seq analysis with automated cell-type annotation and a benchmark evaluation framework that quantifies annotation accuracy against ground-truth labels across calibrated difficulty tiers.
+A production scanpy pipeline for single-cell RNA-seq cell-type annotation with a scientific benchmark evaluation framework. Annotates immune cell types from 10x Genomics PBMC data, then evaluates annotation accuracy against a reference oracle across calibrated difficulty tiers.
+
+[![CI](https://github.com/gbadedata/sc-celltype-benchmark/actions/workflows/ci.yml/badge.svg)](https://github.com/gbadedata/sc-celltype-benchmark/actions/workflows/ci.yml)
+
+---
 
 ## What this project does
 
-Given a 10x Genomics scRNA-seq dataset, this pipeline:
+Most single-cell tutorials stop at producing a UMAP. This project asks the harder question: **how do you know the annotation is correct?**
 
-1. Applies quality control filtering (mitochondrial %, gene counts, UMI counts)
-2. Preprocesses data (normalisation, HVG selection, PCA)
-3. Clusters cells (neighbourhood graph, Leiden community detection, UMAP)
-4. Detects marker genes per cluster (Wilcoxon rank-sum test)
-5. Annotates cell types using two independent methods:
-   - **Manual**: canonical marker gene scoring against curated PBMC marker sets
-   - **Reference-based**: CellTypist pre-trained immune cell model
-6. Evaluates annotation quality through a benchmark framework with:
-   - Oracle ground-truth generation from reference annotations
-   - Stratified holdout experiments (20% withheld labels)
-   - Per-cell-type precision, recall, and F1 scoring
-   - Three difficulty tiers (easy/medium/hard) based on cell-type annotation challenge
-   - Biological constraint validators (marker expression consistency checks)
+It answers that question with a structured benchmark framework: oracle ground-truth labels from CellTypist, stratified holdout experiments, per-cell-type F1 scoring across difficulty tiers, and biological constraint validators that check necessary conditions independently of the oracle.
 
-## Why a benchmark framework matters
+---
 
-Most single-cell tutorials stop at "here are the clusters, here are the markers." They do not ask: **how do you know the annotation is correct?**
+## Quick start
 
-This project answers that question with a structured evaluation framework. The oracle holds ground-truth labels. The pipeline runs blind on withheld cells. Validator functions enforce biological constraints that metrics alone cannot capture (e.g., T cells must express CD3D, B cells must express CD79A). Difficulty tiers separate easy cases (well-separated major lineages) from hard cases (rare cell types, transitional states) so you can see where your pipeline succeeds and where it fails.
+```bash
+git clone git@github.com:gbadedata/sc-celltype-benchmark.git
+cd sc-celltype-benchmark
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python3 -m src.pipeline   # downloads PBMC 3k and runs all 8 phases
+```
 
-This is evaluation design, not just analysis.
+---
 
 ## Dataset
 
-**10x Genomics PBMC 10k v3** -- approximately 11,000 peripheral blood mononuclear cells profiled with 10x Chromium v3 chemistry. PBMCs contain well-characterised immune cell populations (T cells, B cells, monocytes, NK cells, dendritic cells, platelets) with established canonical markers, making them ideal for benchmarking annotation accuracy.
+**10x Genomics PBMC 3k** — 2,700 peripheral blood mononuclear cells from a healthy donor profiled with 10x Chromium v2 chemistry. Downloaded automatically via `scanpy.datasets.pbmc3k()` (figshare).
+
+---
 
 ## Architecture
 
 ```
-Raw 10x h5
-    |
-    v
-[Quality Control] -- filter cells/genes by QC metrics
-    |
-    v
-[Preprocessing] -- normalise, HVG, scale, PCA
-    |
-    v
-[Clustering] -- neighbours, Leiden, UMAP
-    |
-    v
-[Marker Detection] -- Wilcoxon rank-sum per cluster
-    |
-    v
-[Annotation] -- manual (marker scoring) + CellTypist (reference)
-    |
-    v
-[Benchmark Framework]
-    |-- Oracle: ground-truth labels from reference annotation
-    |-- Holdout: stratified 80/20 split
-    |-- Evaluator: accuracy, F1, Cohen's kappa per tier
-    |-- Validators: biological consistency checks
-    |
-    v
-[Visualisation + Report]
-    |-- UMAP plots (clusters, cell types, comparison)
-    |-- Marker dot plots and heatmaps
-    |-- Confusion matrix
-    |-- Benchmark summary by difficulty tier
+Raw 10x counts (2,700 cells × 32,738 genes)
+        │
+        ▼
+[Phase 1] Data loader        — download and cache PBMC 3k h5ad
+        │
+        ▼
+[Phase 2] Quality control    — mito%, gene count filtering → 2,699 × 13,714
+        │
+        ▼
+[Phase 3] Preprocessing      — normalise (10k), log1p, save layers['log_norm'],
+        │                       2,000 HVGs, scale, PCA (50 components)
+        ▼
+[Phase 4] Clustering         — kNN graph (k=15), Leiden (res=1.2), UMAP
+        │
+        ▼
+[Phase 5] Marker detection   — Wilcoxon rank-sum (use_raw=True), 50 genes/cluster
+        │
+        ▼
+[Phase 6] Annotation         — Manual: canonical marker mean-expression scoring
+        │                       CellTypist: Immune_All_Low.pkl, majority voting
+        │                       Harmonise: 53-label exhaustive coarse mapping
+        ▼
+[Phase 7] Benchmark          — Oracle holdout (20% stratified), evaluator,
+        │                       difficulty tiers, biological validators
+        ▼
+[Phase 8] Visualisation      — 8 publication-quality figures → evidence/figures/
 ```
+
+---
+
+## Key results
+
+| Metric | Value |
+|---|---|
+| Cells after QC | 2,699 |
+| Genes after QC | 13,714 |
+| HVGs selected | 2,000 |
+| Leiden clusters | 10 (resolution 1.2) |
+| Cell types annotated | 8 |
+| Benchmark accuracy | 0.9241 |
+| Benchmark weighted F1 | 0.9151 |
+| Cohen's kappa | 0.8948 |
+| Easy tier F1 | 0.991 (n=499) |
+| Medium tier F1 | 0.000 (n=38, see known limitations) |
+| Hard tier F1 | 1.000 (n=3) |
+| Cluster purity validator | 1.000 — PASS |
+| Marker recovery validator | 1.000 — PASS |
+| Biological consistency validator | 1.000 — PASS |
+| Tests passing | 168 |
+| Test coverage | 79% |
+
+---
+
+## Per-cell-type F1
+
+| Cell type | F1 | Support |
+|---|---|---|
+| B cells | 1.000 | 69 |
+| CD4+ T cells | 1.000 | 240 |
+| Platelets | 1.000 | 3 |
+| NK cells | 0.983 | 88 |
+| CD14+ Monocytes | 0.966 | 99 |
+| CD8+ T cells | 0.000 | 3 |
+| Dendritic cells | 0.000 | 7 |
+| FCGR3A+ Monocytes | 0.000 | 31 |
+
+---
+
+## Known limitations
+
+**Medium-tier subtypes (FCGR3A+ Monocytes, Dendritic cells) score F1=0 under manual annotation.** This is not a bug — it is a genuine limitation of mean-expression marker scoring for transcriptionally similar subtypes.
+
+FCGR3A+ Monocytes share the monocyte transcriptional programme (LYZ, S100A8, S100A9) with CD14+ Monocytes. Their distinguishing markers (FCGR3A, MS4A7, IFITM3) are expressed at lower absolute levels. When manual scoring computes mean expression across a cluster, the shared high-abundance monocyte markers dominate over the subtype-specific ones, causing misassignment.
+
+The correct approach for subtypes is reference-based annotation (CellTypist), which correctly distinguishes these populations — and which is exactly what this pipeline uses as the oracle. The limitation is in the manual baseline, not in the framework.
+
+---
+
+## Challenges and solutions
+
+Eight real engineering failures were encountered and resolved. Selected highlights:
+
+| Challenge | Root cause | Fix |
+|---|---|---|
+| 10x CDN returns 403 | CDN blocks programmatic downloads | Switched to `scanpy.datasets.pbmc3k()` via figshare |
+| `adata.raw = adata` corrupts the snapshot | Assignment passes by reference, not by value | `adata.raw = adata.copy()` before any in-place ops |
+| CellTypist rejects the expression matrix | `.raw.X` holds pre-normalisation integers, not log1p-normalised values | Saved `layers['log_norm'] = X.copy()` after `log1p`, before `scale` |
+| CellTypist benchmark kappa=0.27 (should be ~0.89) | 5 of 53 Immune_All_Low labels missing from harmonisation map | Built exhaustive 53-label map; regression test prevents recurrence |
+| Wilcoxon warning despite `use_raw=True` | Known scanpy bug — warning fires incorrectly | Suppressed at call site with `warnings.filterwarnings` |
+| `seurat_v3` HVG selection fails | Requires `skmisc` package; wrong input type post-normalisation | Switched to `seurat` flavour on log-normalised data |
+
+Full challenge documentation in [ENGINEERING_LOG.md](docs/ENGINEERING_LOG.md).
+
+---
 
 ## Project structure
 
 ```
 sc-celltype-benchmark/
-├── config/
-│   ├── __init__.py
-│   └── settings.py              # Pydantic Settings configuration
+├── config/settings.py          # Pydantic Settings — all parameters configurable
 ├── src/
-│   ├── __init__.py
-│   ├── pipeline.py              # Main pipeline orchestrator
-│   ├── data_loader.py           # Download and load 10x data
-│   ├── quality_control.py       # QC metrics and filtering
-│   ├── preprocessing.py         # Normalisation, HVG, PCA
-│   ├── clustering.py            # Neighbours, Leiden, UMAP
-│   ├── markers.py               # Marker detection + canonical marker sets
-│   ├── annotation.py            # Manual + CellTypist annotation
-│   ├── visualization.py         # Publication-quality figures
+│   ├── pipeline.py             # End-to-end runner (python3 -m src.pipeline)
+│   ├── data_loader.py          # Download and load 10x datasets
+│   ├── quality_control.py      # QC metrics, cell/gene filtering
+│   ├── preprocessing.py        # Normalise, HVG, scale, PCA
+│   ├── clustering.py           # kNN, Leiden, UMAP
+│   ├── markers.py              # Wilcoxon DE, canonical PBMC markers
+│   ├── annotation.py           # Manual scoring + CellTypist + harmonisation
+│   ├── visualization.py        # 8 publication-quality figures
 │   └── benchmark/
-│       ├── __init__.py
-│       ├── oracle.py            # Ground-truth label management
-│       ├── evaluator.py         # Scoring and reporting
-│       ├── validators.py        # Biological constraint checks
-│       └── difficulty.py        # Difficulty tier assignments
-├── tests/
-│   ├── conftest.py              # Synthetic AnnData fixtures
-│   └── test_fixtures.py         # Fixture validation tests
+│       ├── oracle.py           # Ground-truth management, stratified holdout
+│       ├── evaluator.py        # F1, kappa, confusion matrix, JSON report
+│       ├── validators.py       # Biological constraint checks
+│       └── difficulty.py       # Easy/medium/hard tier assignment
+├── tests/                      # 168 tests, 79% coverage
 ├── evidence/
-│   ├── figures/                 # Generated plots
-│   ├── reports/                 # Benchmark JSON reports
-│   └── screenshots/             # Deployment evidence
-├── data/                        # Downloaded datasets (gitignored)
-├── docs/                        # Additional documentation
-├── .github/workflows/ci.yml    # GitHub Actions CI
+│   ├── figures/                # 8 PNG plots (generated)
+│   ├── reports/                # benchmark_report.json (generated)
+│   └── screenshots/            # Deployment evidence
+├── .github/workflows/ci.yml    # GitHub Actions: lint + test on every push
 ├── requirements.txt
-├── pyproject.toml
-└── .env.example
+└── pyproject.toml
 ```
 
-## Setup
-
-```bash
-cd ~/projects/bioinformatics
-git clone git@github.com:gbadedata/sc-celltype-benchmark.git
-cd sc-celltype-benchmark
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+---
 
 ## Run tests
 
@@ -122,42 +167,24 @@ pip install -r requirements.txt
 python3 -m pytest tests/ -v
 ```
 
-## Run the full pipeline
+## Configuration
+
+All parameters are configurable via environment variables prefixed `SC_`:
 
 ```bash
-python3 -m src.pipeline
+SC_LEIDEN_RESOLUTION=1.5 python3 -m src.pipeline
+SC_BENCHMARK_HOLDOUT_FRACTION=0.3 python3 -m src.pipeline
 ```
 
-## Key results
+See `.env.example` for the full list.
 
-*Results will be populated as each phase is implemented.*
-
-| Metric | Value |
-|---|---|
-| Cells after QC | -- |
-| Clusters (Leiden) | -- |
-| Cell types annotated | -- |
-| Benchmark accuracy | -- |
-| Benchmark weighted F1 | -- |
-| Easy tier F1 | -- |
-| Medium tier F1 | -- |
-| Hard tier F1 | -- |
-| Tests passing | -- |
+---
 
 ## Tools and libraries
 
-- **scanpy** -- single-cell RNA-seq analysis
-- **anndata** -- annotated data matrices
-- **CellTypist** -- reference-based cell-type annotation
-- **scikit-learn** -- evaluation metrics
-- **scipy** -- statistical tests
-- **matplotlib / seaborn** -- visualisation
-- **pytest** -- testing
-- **ruff** -- linting
-- **GitHub Actions** -- CI
+scanpy · anndata · CellTypist · scikit-learn · scipy · pandas · numpy · matplotlib · seaborn · pytest · ruff · GitHub Actions
 
-## Author
+---
 
-**O.J. Odimayo** -- Bioinformatics Data Engineer
-- GitHub: [gbadedata](https://github.com/gbadedata)
-- Email: oluwagbadeodimayo@gmail.com
+**Author:** O.J. Odimayo — Bioinformatics Data Engineer
+[github.com/gbadedata](https://github.com/gbadedata) · oluwagbadeodimayo@gmail.com

@@ -1,0 +1,230 @@
+{
+  "metadata": {
+    "timestamp": "2026-06-15T09:38:06.552177+00:00",
+    "dataset": "PBMC 3k (10x Genomics)",
+    "holdout_fraction": 0.2,
+    "seed": 42
+  },
+  "summary": {
+    "n_cells_evaluated": 540,
+    "accuracy": 0.9241,
+    "weighted_f1": 0.9151,
+    "macro_f1": 0.6186,
+    "cohens_kappa": 0.8948
+  },
+  "per_type_metrics": [
+    {
+      "cell_type": "B cells",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 69
+    },
+    {
+      "cell_type": "CD14+ Monocytes",
+      "precision": 0.934,
+      "recall": 1.0,
+      "f1": 0.9659,
+      "support": 99
+    },
+    {
+      "cell_type": "CD4+ T cells",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 240
+    },
+    {
+      "cell_type": "CD8+ T cells",
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 3
+    },
+    {
+      "cell_type": "Dendritic cells",
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 7
+    },
+    {
+      "cell_type": "FCGR3A+ Monocytes",
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 31
+    },
+    {
+      "cell_type": "NK cells",
+      "precision": 0.967,
+      "recall": 1.0,
+      "f1": 0.9832,
+      "support": 88
+    },
+    {
+      "cell_type": "Platelets",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 3
+    }
+  ],
+  "confusion_matrix": {
+    "labels": [
+      "B cells",
+      "CD14+ Monocytes",
+      "CD4+ T cells",
+      "CD8+ T cells",
+      "Dendritic cells",
+      "FCGR3A+ Monocytes",
+      "NK cells",
+      "Platelets"
+    ],
+    "matrix": [
+      [
+        69,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        99,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        240,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0
+      ],
+      [
+        0,
+        7,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        31,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        88,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3
+      ]
+    ]
+  },
+  "tier_breakdown": {
+    "easy": {
+      "n_cells": 499,
+      "accuracy": 0.994,
+      "weighted_f1": 0.991,
+      "cohens_kappa": 0.9911
+    },
+    "hard": {
+      "n_cells": 3,
+      "accuracy": 1.0,
+      "weighted_f1": 1.0,
+      "cohens_kappa": NaN
+    },
+    "medium": {
+      "n_cells": 38,
+      "accuracy": 0.0,
+      "weighted_f1": 0.0,
+      "cohens_kappa": -0.1769
+    }
+  },
+  "pipeline": {
+    "runtime_seconds": 39.2,
+    "settings": {
+      "leiden_resolution": 0.8,
+      "n_top_genes": 2000,
+      "n_pcs": 50,
+      "n_neighbors": 15,
+      "benchmark_holdout_fraction": 0.2,
+      "benchmark_seed": 42
+    },
+    "qc": {
+      "cells_before": 2700,
+      "cells_after": 2699,
+      "genes_before": 32738,
+      "genes_after": 13714,
+      "median_genes_per_cell": 817.0,
+      "median_pct_mito": 2.0293121337890625
+    },
+    "clustering": {
+      "n_clusters": 8,
+      "resolution": 0.8
+    },
+    "validators": [
+      {
+        "name": "cluster_purity",
+        "passed": true,
+        "score": 1.0,
+        "details": "8/8 clusters are pure (>= 80% dominant type). Mean purity: 1.000."
+      },
+      {
+        "name": "marker_recovery",
+        "passed": true,
+        "score": 1.0,
+        "details": "6/6 cell types express at least one canonical marker above background."
+      },
+      {
+        "name": "biological_consistency",
+        "passed": true,
+        "score": 1.0,
+        "details": "5/5 biological constraints satisfied."
+      }
+    ]
+  }
+}
