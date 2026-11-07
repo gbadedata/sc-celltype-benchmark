@@ -27,4 +27,4 @@ structlog>=23.0.0
 # Testing and code quality
 pytest>=7.0.0
 pytest-cov>=4.0.0
-ruff>=0.4.0
+ruff==0.17.4

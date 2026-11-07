@@ -83,8 +83,11 @@ class TestRunLeiden:
         result = run_leiden(adata)
         col = result.obs["leiden"]
         assert isinstance(col.dtype, pd.CategoricalDtype)
-        # Underlying categories must be strings (e.g. '0', '1', '2')
-        assert col.cat.categories.dtype == object
+        # Underlying categories must be strings (e.g. '0', '1', '2'). pandas < 3 stores them
+        # as object dtype and pandas >= 3 as its dedicated string dtype; accept either.
+        categories = col.cat.categories
+        assert pd.api.types.is_string_dtype(categories)
+        assert all(isinstance(c, str) for c in categories)
 
 
 class TestComputeUmap:
